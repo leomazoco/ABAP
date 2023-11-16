@@ -1,0 +1,1827 @@
+*&---------------------------------------------------------------------*
+*& Report ZPR_LM_DADOS_MESTRES
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zpr_lm_dados_mestres.
+
+TABLES: t004,
+        ska1,
+        csks,
+        cepc,
+        coas,
+        prps,
+        cdhdr.
+
+TYPES: BEGIN OF ty_empresa,
+
+         bukrs     TYPE t001-bukrs, "EMPRESA
+         butxt     TYPE t001-butxt, "NOME
+         cnpj      TYPE j_1bwfield-cgc_number,
+         insc_estd TYPE j_1bbranch,
+         land1     TYPE t001-land1, "PAÍS
+         endereco  TYPE addr1_val,
+         cidade    TYPE addr1_val,
+         bairro    TYPE addr1_val,
+         cep       TYPE addr1_val,
+         waers     TYPE t001-waers, "MOEDA PADRÃO
+
+       END OF ty_empresa,
+
+       BEGIN OF ty_sociedade,
+
+         sociedade TYPE t880-rcomp,
+         nome      TYPE t880-name1,
+         raiz      TYPE t880-name2,
+         pais      TYPE t880-cntry,
+         moeda     TYPE t880-curr,
+         rua       TYPE t880-stret,
+         cep       TYPE t880-pstlc,
+         cidade    TYPE t880-city,
+
+       END OF ty_sociedade,
+
+       BEGIN OF ty_divisao,
+
+         divisao TYPE tgsb-gsber,
+         "descricao TYPE tgsb-gtext, "NÃO EXISTE CAMPO COM O NOME ESPECFICADO NA EF
+
+       END OF ty_divisao,
+
+       BEGIN OF ty_centro,
+
+         centro  TYPE t001w-werks,
+         nome    TYPE t001w-name1,
+         empresa TYPE t001k-bukrs,
+
+
+       END OF ty_centro,
+
+       BEGIN OF ty_contas,
+
+         conta_saknr      TYPE ska1-saknr,
+         PlContas_ktopl   TYPE ska1-ktopl,
+         "desc_txt20       TYPE ska1-txt20,
+         contBlc_xbilk    TYPE ska1-xbilk,
+         centro_faus1     TYPE t004f-faus1,
+         material_FAUS1   TYPE t004f-faus1,
+         cCusto_FAUS1     TYPE t004f-faus1,
+         ordem_FAUS1      TYPE t004f-faus1,
+         pep_faus1        TYPE t004f-faus1,
+         net_faus1        TYPE t004f-faus1,
+         Bi_plano_XSPEB   TYPE  ska1-xspeb,
+         empresa_bukrs    TYPE skb1-bukrs,
+         Bi_empresa_xspeb TYPE skb1-xspeb,
+
+
+
+       END OF ty_contas,
+
+       BEGIN OF ty_cdhdr,
+
+         objeto1(20) TYPE c,
+         objeto2(20) TYPE c,
+         objectclas  TYPE cdhdr-objectclas,
+         objectid    TYPE cdhdr-objectid,
+         udate       TYPE cdhdr-udate,
+
+       END OF ty_cdhdr,
+
+       BEGIN OF ty_centro_custo,
+
+         kostl TYPE csks-kostl, "CÓDIGO
+         kokrs TYPE csks-kokrs, "AREA CONTABILIDADE
+         ltext TYPE cskt-ltext, "DESCRIÇÃO
+         bukrs TYPE csks-bukrs, "EMPRESA
+         gsber TYPE csks-gsber, "UNIDADE
+         verak TYPE csks-verak, "RESPONSÁVEL
+         bkzkp TYPE csks-bkzkp, "BLOQUEADO
+         datab TYPE csks-datab, "VÁLIDO DESDE
+         datbi TYPE csks-datbi, "VALIDO ATÉ
+
+       END OF ty_centro_custo,
+
+       BEGIN OF ty_centro_lucro,
+
+         kokrs    TYPE csks-kokrs,
+         prctr    TYPE cepc-prctr,       "CÓDIGO
+         ktext    TYPE cepct-ktext,      "DESCRIÇÃO
+         bukrs    TYPE cepc_bukrs-bukrs, "EMPRESA
+         verak    TYPE cepc-verak,       "RESPONSÁVEL
+         lock_ind TYPE cepc-lock_ind,    "BLOQUEADO
+         datab    TYPE cepc-datab,       "VALIDO DESDE
+         datbi    TYPE cepc-datbi,       "VÁLIDO ATÉ
+
+
+       END OF ty_centro_lucro,
+
+       BEGIN OF ty_investimento,
+
+         aufnr      TYPE coas-aufnr, "CÓDIGO
+         ktext      TYPE coas-ktext, "DESCRIÇÃO
+         bukrs      TYPE coas-bukrs, "EMPRESA
+         werks      TYPE coas-werks, "UNIDADE
+         user2      TYPE coas-user2, "RESPONSÁVEL
+         sys_block  TYPE bapi2075_3-sys_status,
+         user_block TYPE bapi2075_4-usr_status,
+
+       END OF ty_investimento,
+
+       BEGIN OF ty_pep,
+
+         pspnr        TYPE prps-pspnr, "CÓDIGO
+         post1        TYPE prps-post1, "DESCRIÇÃO
+         pbukr        TYPE prps-pbukr, "EMPRESA
+         werks        TYPE prps-werks, "UNIDADE
+         verna        TYPE prps-verna, "RESPONSÁVEL
+         bloqueado(2) TYPE c,
+
+       END OF ty_pep,
+
+       BEGIN OF ty_network,
+
+         aufnr        TYPE coas-aufnr, "CÓDIGO
+         operacao     TYPE bapi_network_activity_exp-activity,
+         pspel        TYPE coas-pspel, "PEP
+         ktext        TYPE coas-ktext, "DESCRIÇÃO
+         bukrs        TYPE coas-bukrs, "EMPRESA
+         werks        TYPE coas-werks, "UNIDADE
+         verna        TYPE prps-verna, "RESPONSÁVEL
+         bloqueado(2) TYPE c,
+
+       END OF ty_network,
+
+       BEGIN OF ty_dados,
+
+         dados(500) TYPE c,
+
+       END OF ty_dados.
+
+
+**********************************************************************
+**********************************************************************
+
+DATA: it_empresa      TYPE TABLE OF ty_empresa,
+      it_centro       TYPE TABLE OF ty_centro,
+      it_contas       TYPE TABLE OF ty_contas,
+      it_contas_mod   TYPE TABLE OF ty_contas,
+      it_cdhdr        TYPE TABLE OF ty_cdhdr,
+      it_centro_custo TYPE TABLE OF ty_centro_custo,
+      it_cc_modif     TYPE TABLE OF ty_centro_custo,
+      it_centro_lucro TYPE TABLE OF ty_centro_lucro,
+      it_ctl_modif    TYPE TABLE OF ty_centro_lucro,
+      it_investimento TYPE TABLE OF ty_investimento,
+      it_pep          TYPE TABLE OF ty_pep,
+      it_pep_modif    TYPE TABLE OF ty_pep,
+      it_network      TYPE TABLE OF ty_network,
+      it_sociedade    TYPE TABLE OF ty_sociedade,
+      it_dados        TYPE TABLE OF ty_dados,
+      it_header       TYPE TABLE OF ty_dados,
+      it_divisao      TYPE TABLE OF ty_divisao.
+
+
+DATA: wa_empresa      TYPE ty_empresa,
+      wa_centro       TYPE ty_centro,
+      wa_sociedade    TYPE ty_sociedade,
+      wa_cdhdr        TYPE ty_cdhdr,
+      wa_centro_custo TYPE ty_centro_custo,
+      wa_cc_modif     TYPE ty_centro_custo,
+      wa_centro_lucro TYPE ty_centro_lucro,
+      wa_ctl_modif    TYPE ty_centro_lucro,
+      wa_investimento TYPE ty_investimento,
+      wa_pep          TYPE ty_pep,
+      wa_pep_modif    TYPE ty_pep,
+      wa_contas       TYPE ty_contas,
+      wa_contas_mod   TYPE ty_contas,
+      wa_network      TYPE ty_network,
+      wa_dados        TYPE ty_dados,
+      wa_header       TYPE ty_dados,
+      wa_divisao      TYPE ty_divisao.
+
+********** DECLARAÇÃO DE CONSTANTES ******************************
+********** FILIAIS ***********************************************
+DATA: gc_filial_1      TYPE j_1bbranch-branch VALUE '7000',
+      gc_filial_2      TYPE j_1bbranch-branch VALUE '7020',
+      gc_filial_3      TYPE j_1bbranch-branch VALUE '7060',
+************ OBJETOS ***********************************************
+      gc_obj_conta(5)  TYPE c VALUE 'SACH',
+      gc_obj_ccusto(5) TYPE c VALUE 'KOSTL',
+      gc_obj_clucro(5) TYPE c VALUE 'PRCTR',
+***********CAT ORDENS *************************************************
+      gc_cat_order1(5) TYPE c VALUE '01',
+      gc_cat_order2(5) TYPE c VALUE '02',
+      gc_cat_order3(5) TYPE c VALUE '03',
+      gc_cat_net(5)    TYPE c VALUE '20',
+************** SYS ***************************************************
+      gc_sys_blok1(5)  TYPE c VALUE 'I0045',
+      gc_sys_blok2(5)  TYPE c VALUE 'I0046',
+      gc_usu_blok(5)   TYPE c VALUE 'E0002'.
+
+DATA: gc_pasta_padrao(50) TYPE c VALUE 'C:\Users\dougl\OneDrive\Documentos\',
+      gc_message_type_e TYPE c VALUE 'E' LENGTH 1,
+      gc_message_type_s TYPE c VALUE 'S' LENGTH 1,
+      p_file              TYPE string.
+
+DATA: gv_objectId(15)  TYPE c,
+      gv_objectid2(15) TYPE c,
+      gv_prctr(10)     TYPE c,
+      gv_kokrs(4)      TYPE c.
+
+******************** NOME DE ARQUIVO DOS RELATÓRIOS ******************
+
+DATA: gc_relatorio_empresa(50)   TYPE c VALUE 'EAB_EMPRESA_20160930163803.txt',
+      gc_relatorio_sociedade(50) TYPE c VALUE 'CSP_SOCIEDADE_PARCEIRA_20160930163803.txt',
+      gc_relatorio_divisao(50)   TYPE c VALUE 'P72_DIVISAO_20160930163803.txt',
+      gc_relatorio_centro(50)    TYPE c VALUE 'EAB_CENTRO_20160930163803.txt',
+      gc_relatorio_plcontas(50)  TYPE c VALUE 'GAS_CONTA_20160930163803.txt',
+      gc_relatorio_custos(50)    TYPE c VALUE 'GAS_CCUSTO_20160930163803.txt',
+      gc_relatorio_lucro(50)     TYPE c VALUE 'EAB_CLUCRO_20160930163803.txt',
+      gc_relatorio_ordem(50)     TYPE c VALUE 'EAB_ORDEM_20160930163803.txt',
+      gc_relatorio_pep(50)       TYPE c VALUE 'GAS_PEP_20160930163803.txt',
+      gc_relatorio_network(50)   TYPE c VALUE 'CSP_NETWORK_20160930163803.txt'.
+
+***************** NOME DE ARQUIVO PARA O GUI DOWNLOAD ******************
+DATA: gv_filename       TYPE string,
+      gv_cabecalho(100) TYPE c.
+
+
+********** FIM DECLARAÇÃO DE CONSTANTES ******************************
+
+SELECTION-SCREEN BEGIN OF BLOCK block1 WITH FRAME TITLE TEXT-001.
+
+  PARAMETERS: p_check1 AS CHECKBOX, "EMPRESA
+              p_check2 AS CHECKBOX, "SOCIEDADE PARCEIRA
+              p_check3 AS CHECKBOX, "DIVISÃO
+              p_check4 AS CHECKBOX. "CENTRO
+
+  SELECTION-SCREEN BEGIN OF LINE.
+
+    PARAMETERS : p_check5 AS CHECKBOX USER-COMMAND muda_tela. "DEFAULT 'X'. "CONTAS
+    SELECTION-SCREEN COMMENT (10) TEXT-t01.
+
+    SELECTION-SCREEN POSITION 30.
+    SELECTION-SCREEN COMMENT (15) TEXT-t02.
+    SELECT-OPTIONS: s_plc FOR t004-ktopl. "PLANO DE CONTAS
+*    SELECTION-SCREEN COMMENT (10) text-t02.
+
+  SELECTION-SCREEN END OF LINE.
+
+  PARAMETERS: p_check6 AS CHECKBOX USER-COMMAND muda_tela, "CENTRO DE CUSTO
+              p_check7 AS CHECKBOX USER-COMMAND muda_tela, "CENTRO DE LUCRO
+              p_check8 AS CHECKBOX USER-COMMAND muda_tela, "ORDEM DE INVESTIMENTO
+              p_check9 AS CHECKBOX USER-COMMAND muda_tela, "ELEMENTO PEP
+              p_chec10 AS CHECKBOX USER-COMMAND muda_tela. "NETWORK
+
+SELECTION-SCREEN END OF BLOCK block1.
+
+************  SELEÇÃO DE DATA CENTRO DE CUSTO **************************
+
+SELECTION-SCREEN BEGIN OF BLOCK block7 WITH FRAME TITLE TEXT-006.
+
+  SELECT-OPTIONS: s_dt FOR csks-ersda MODIF ID t2,
+                  s_dtm FOR cdhdr-udate MODIF ID t2.
+
+SELECTION-SCREEN END OF BLOCK block7.
+
+************  SELEÇÃO DE DATA CENTRO DE LUCRO **************************
+
+SELECTION-SCREEN BEGIN OF BLOCK block6 WITH FRAME TITLE TEXT-007.
+
+  SELECT-OPTIONS: s_dcl  FOR cepc-ersda MODIF ID t3,
+                  s_dclm FOR cdhdr-udate MODIF ID t3.
+
+SELECTION-SCREEN END OF BLOCK block6.
+
+************  SELEÇÃO DE ORDEM DE INVESTIMENTO **************************
+
+SELECTION-SCREEN BEGIN OF BLOCK block8 WITH FRAME TITLE TEXT-008.
+
+  SELECT-OPTIONS: s_dti  FOR coas-erdat MODIF ID t4.
+
+SELECTION-SCREEN END OF BLOCK block8.
+
+
+
+************ SELEÇÃO DATA DA TABELA SKA1*************************
+
+SELECTION-SCREEN BEGIN OF BLOCK block4 WITH FRAME TITLE TEXT-003.
+
+  SELECT-OPTIONS: s_date FOR ska1-erdat MODIF ID t1.
+
+SELECTION-SCREEN END OF BLOCK block4.
+
+
+************ SELEÇÃO DATA DA PEP       *************************
+
+SELECTION-SCREEN BEGIN OF BLOCK block9 WITH FRAME TITLE TEXT-009.
+
+  SELECT-OPTIONS: s_dtpep  FOR prps-erdat MODIF ID t5,
+                  s_dtpepm FOR prps-aedat MODIF ID t5.
+
+SELECTION-SCREEN END OF BLOCK block9.
+
+************ SELEÇÃO DATA NETWORK      *************************
+
+SELECTION-SCREEN BEGIN OF BLOCK block10 WITH FRAME TITLE TEXT-010.
+
+  SELECT-OPTIONS: s_dtnet  FOR coas-erdat MODIF ID t6,
+                  s_dtnetm FOR coas-aedat MODIF ID t6.
+
+SELECTION-SCREEN END OF BLOCK block10.
+
+**************DATA DE CRIAÇÃO************************
+
+SELECTION-SCREEN BEGIN OF BLOCK block2 WITH FRAME TITLE TEXT-004.
+
+  SELECT-OPTIONS: s_data FOR ska1-erdat MODIF ID t1.
+
+SELECTION-SCREEN END OF BLOCK block2.
+
+***************** OPÇÕES PARA SALVAR ****************
+
+SELECTION-SCREEN BEGIN OF BLOCK block3 WITH FRAME TITLE TEXT-002.
+
+  PARAMETERS: r_local RADIOBUTTON GROUP g1,
+              r_serv  RADIOBUTTON GROUP g1,
+              p_arq   TYPE ibipparms-path DEFAULT gc_pasta_padrao . "OBLIGATORY.
+*              p_path  TYPE ibipparms-path.
+
+SELECTION-SCREEN END OF BLOCK block3.
+
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM: modifica_tela.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_arq.
+  PERFORM zf_selecionar_pasta.
+
+
+START-OF-SELECTION.
+
+  p_file = p_arq.
+
+  IF p_check1 EQ abap_true. "EXTRAIR DADOS DA EMPRESA
+    PERFORM: zf_dados_empresa.
+
+    IF r_local EQ abap_true.
+      CONCATENATE p_file gc_relatorio_empresa INTO p_file.
+      PERFORM zf_baixar_relatorio.
+    ENDIF.
+
+******************************************************************************
+
+  ELSEIF p_check2 EQ abap_true.
+
+    PERFORM zf_sociedade_parceira. "DADOS DE SOCIEDADES PARCEIRAS
+
+    IF r_local EQ abap_true.
+      CONCATENATE p_file gc_relatorio_sociedade INTO p_file.
+      PERFORM zf_baixar_relatorio.
+    ENDIF.
+
+******************************************************************************
+
+  ELSEIF p_check3 EQ abap_true. "DADOS DE DIVISÕES
+
+    PERFORM zf_dados_divisao.
+
+******************************************************************************
+
+  ELSEIF p_check4 EQ abap_true. "DADOS DE CENTROS
+
+    PERFORM zf_extrair_centro.
+
+    IF r_local EQ abap_true.
+      CONCATENATE p_file gc_relatorio_centro INTO p_file.
+      PERFORM zf_baixar_relatorio.
+    ENDIF.
+
+******************************************************************************
+
+  ELSEIF p_check5 EQ abap_true.
+
+    PERFORM zf_extrair_contas.
+
+    IF r_local EQ abap_true.
+      CONCATENATE p_file gc_relatorio_plcontas INTO p_file.
+      PERFORM zf_baixar_relatorio.
+    ENDIF.
+
+******************************************************************************
+
+  ELSEIF p_check6 EQ abap_true.
+
+    PERFORM zf_extrair_ccustos.
+
+    IF r_local EQ abap_true.
+      CONCATENATE p_file gc_relatorio_custos INTO p_file.
+      PERFORM zf_baixar_relatorio.
+    ENDIF.
+
+******************************************************************************
+
+  ELSEIF p_check7 EQ abap_true.
+
+    PERFORM zf_extrair_clucro.
+
+    IF r_local EQ abap_true.
+      CONCATENATE p_file gc_relatorio_lucro INTO p_file.
+      PERFORM zf_baixar_relatorio.
+    ENDIF.
+
+******************************************************************************
+
+  ELSEIF p_check8 EQ abap_true.
+
+    PERFORM zf_extrair_investimento.
+
+******************************************************************************
+
+  ELSEIF p_check9 EQ abap_true.
+
+    PERFORM zf_extrair_pep.
+
+******************************************************************************
+
+  ELSEIF  p_chec10 EQ abap_true.
+
+    PERFORM zf_extrair_network.
+
+  ENDIF.
+
+
+*&---------------------------------------------------------------------*
+*& Form zf_dados_empresa
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_dados_empresa .
+
+  SELECT bukrs, butxt, land1, waers
+    FROM t001
+    INTO TABLE @DATA(lt_t001).
+
+  LOOP AT lt_t001 INTO DATA(lw_t001) .
+
+    wa_empresa-bukrs = lw_t001-bukrs. "EMPRESA
+    wa_empresa-butxt = lw_t001-butxt. "NOME
+    wa_empresa-land1 = lw_t001-land1. "PAÍS
+    wa_empresa-waers = lw_t001-waers. "MOEDA PADRÃO
+
+    PERFORM zf_consultar_filiais USING gc_filial_1 wa_empresa-bukrs
+                                 CHANGING wa_empresa-cnpj
+                                          wa_empresa-insc_estd
+                                          wa_empresa-endereco
+                                          wa_empresa-cidade
+                                          wa_empresa-bairro
+                                          wa_empresa-cep.
+
+    IF wa_empresa-insc_estd IS INITIAL.
+      PERFORM zf_consultar_filiais USING gc_filial_2 wa_empresa-bukrs
+                                 CHANGING wa_empresa-cnpj
+                                          wa_empresa-insc_estd
+                                          wa_empresa-endereco
+                                          wa_empresa-cidade
+                                          wa_empresa-bairro
+                                          wa_empresa-cep.
+
+    ENDIF.
+
+    IF wa_empresa-insc_estd IS INITIAL.
+      PERFORM zf_consultar_filiais USING gc_filial_3 wa_empresa-bukrs
+                                 CHANGING wa_empresa-cnpj
+                                          wa_empresa-insc_estd
+                                          wa_empresa-endereco
+                                          wa_empresa-cidade
+                                          wa_empresa-bairro
+                                          wa_empresa-cep.
+
+    ENDIF.
+
+    CONCATENATE wa_empresa-bukrs "CONCATENAÇÃO DOS CAMPOS EM ÚNICO DADOS PARA O RELATÓRIO .txt
+              wa_empresa-butxt
+              wa_empresa-cnpj
+              wa_empresa-insc_estd-state_insc
+              wa_empresa-endereco-street
+              wa_empresa-cidade-city1
+              wa_empresa-bairro-city2
+              wa_empresa-cep-post_code1
+              wa_empresa-waers INTO wa_dados-dados SEPARATED BY '|'.
+
+   APPEND wa_dados TO it_dados.
+
+
+  ENDLOOP.
+
+*  CONCATENATE wa_empresa-bukrs "CONCATENAÇÃO DOS CAMPOS EM ÚNICO DADOS PARA O RELATÓRIO .txt
+*              wa_empresa-butxt
+*              wa_empresa-cnpj
+*              wa_empresa-insc_estd-state_insc
+*              wa_empresa-endereco-street
+*              wa_empresa-cidade-city1
+*              wa_empresa-bairro-city2
+*              wa_empresa-cep-post_code1
+*              wa_empresa-waers INTO wa_dados-dados SEPARATED BY '|'.
+*
+*  APPEND wa_dados TO it_dados.
+
+  gv_cabecalho = 'Empresa|Nome|CNPJ|Inscrição_Estadual|País|Endereço|Cidade/Estado|CEP'.
+
+  wa_header-dados = gv_cabecalho.
+
+  APPEND wa_header-dados TO it_header.
+
+
+ENDFORM.
+
+FORM zf_consultar_filiais USING in_filial TYPE j_1bbranch-branch
+                                in_empresa TYPE t001-bukrs
+
+                          CHANGING out_cnpj TYPE j_1bwfield-cgc_number
+                                   out_insc_estd TYPE j_1bbranch
+                                   out_endereco  LIKE addr1_val
+                                   out_cidade    TYPE addr1_val
+                                   out_bairro    TYPE addr1_val
+                                   out_cep       TYPE addr1_val .
+*                                   out_address.
+
+
+
+  CALL FUNCTION 'J_1BREAD_CGC_COMPANY' "FUNÇÃO PARA EXTRAÇÃO DO CNPJ
+    EXPORTING
+      bukrs      = in_empresa
+    IMPORTING
+*     CGC_COMPANY       = out_cnpj.
+      cgc_number = out_cnpj.
+
+
+  CALL FUNCTION 'J_1B_BRANCH_READ'
+    EXPORTING
+      branch            = in_filial
+      company           = in_empresa
+    IMPORTING
+*     ADDRESS           =
+      branch_record     = out_insc_estd
+**     CGC_NUMBER        =
+      address_value     = out_endereco
+*     address_value     = out_cidade
+*     address_value     = out_bairro
+*     address_value     = out_cep
+    EXCEPTIONS
+      branch_not_found  = 1
+      address_not_found = 2
+      company_not_found = 3
+      OTHERS            = 4.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  wa_empresa-insc_estd = out_insc_estd-state_insc.
+  wa_empresa-endereco = out_endereco-street.
+  wa_empresa-cidade = out_endereco-city1.
+  wa_empresa-bairro = out_endereco-city2.
+  wa_empresa-cep = out_endereco-post_code1.
+
+  APPEND wa_empresa TO it_empresa.
+
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*& Form modifica_tela
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM modifica_tela .
+
+  LOOP AT SCREEN.
+
+    IF p_check5 EQ abap_true.
+
+      IF screen-group1 = 'T1'.
+        screen-invisible = 0.
+        screen-input     = 1.
+        screen-active    = 1.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ELSE.
+      IF screen-group1 = 'T1'.
+        screen-invisible = 1.
+        screen-input     = 0.
+        screen-active    = 0.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ENDIF.
+
+  ENDLOOP.
+
+  LOOP AT SCREEN.
+
+    IF p_check6 EQ abap_true.
+
+      IF screen-group1 = 'T2'.
+        screen-invisible = 0.
+        screen-input     = 1.
+        screen-active    = 1.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ELSE.
+      IF screen-group1 = 'T2'.
+        screen-invisible = 1.
+        screen-input     = 0.
+        screen-active    = 0.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ENDIF.
+
+    IF p_check7 EQ abap_true.
+
+      IF screen-group1 = 'T3'.
+        screen-invisible = 0.
+        screen-input     = 1.
+        screen-active    = 1.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ELSE.
+      IF screen-group1 = 'T3'.
+        screen-invisible = 1.
+        screen-input     = 0.
+        screen-active    = 0.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ENDIF.
+
+    IF p_check8 EQ abap_true.
+
+      IF screen-group1 = 'T4'.
+        screen-invisible = 0.
+        screen-input     = 1.
+        screen-active    = 1.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ELSE.
+      IF screen-group1 = 'T4'.
+        screen-invisible = 1.
+        screen-input     = 0.
+        screen-active    = 0.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ENDIF.
+
+    IF p_check9 EQ abap_true.
+
+      IF screen-group1 = 'T5'.
+        screen-invisible = 0.
+        screen-input     = 1.
+        screen-active    = 1.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ELSE.
+      IF screen-group1 = 'T5'.
+        screen-invisible = 1.
+        screen-input     = 0.
+        screen-active    = 0.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ENDIF.
+
+    IF p_chec10 EQ abap_true.
+
+      IF screen-group1 = 'T6'.
+        screen-invisible = 0.
+        screen-input     = 1.
+        screen-active    = 1.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ELSE.
+      IF screen-group1 = 'T6'.
+        screen-invisible = 1.
+        screen-input     = 0.
+        screen-active    = 0.
+        MODIFY SCREEN.
+        CONTINUE.
+      ENDIF.
+
+    ENDIF.
+
+
+
+  ENDLOOP.
+
+
+
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*& Form zf_sociedade_parceira
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_sociedade_parceira .
+
+  SELECT rcomp, name1, name2, cntry, curr, stret, pstlc, city
+    FROM t880
+    INTO TABLE @DATA(lt_t880).
+
+  LOOP AT lt_t880 INTO DATA(lw_t880).
+
+    wa_sociedade-sociedade = lw_t880-rcomp.
+    wa_sociedade-nome = lw_t880-name1.
+    wa_sociedade-raiz = lw_t880-name2.
+    wa_sociedade-pais = lw_t880-cntry.
+    wa_sociedade-moeda = lw_t880-curr.
+    wa_sociedade-rua = lw_t880-stret.
+    wa_sociedade-cep = lw_t880-pstlc.
+    wa_sociedade-cidade = lw_t880-city.
+
+    APPEND wa_sociedade TO it_sociedade.
+
+    CONCATENATE wa_sociedade-sociedade
+              wa_sociedade-nome
+              wa_sociedade-raiz
+              wa_sociedade-pais
+              wa_sociedade-moeda
+              wa_sociedade-rua
+              wa_sociedade-cep
+              wa_sociedade-cidade INTO wa_dados-dados SEPARATED BY '|'.
+
+    APPEND wa_dados TO it_dados.
+
+  ENDLOOP.
+
+*  CONCATENATE wa_sociedade-sociedade
+*              wa_sociedade-nome
+*              wa_sociedade-raiz
+*              wa_sociedade-pais
+*              wa_sociedade-moeda
+*              wa_sociedade-rua
+*              wa_sociedade-cep
+*              wa_sociedade-cidade INTO wa_dados-dados SEPARATED BY '|'.
+*
+*  APPEND wa_dados TO it_dados.
+
+  gv_cabecalho = 'Sociedade|Nome|Raiz|País|Moeda|Rua|CEP|Cidade'.
+
+  wa_header-dados = gv_cabecalho.
+
+  APPEND wa_header-dados TO it_header.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form zf_dados_divisao
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_dados_divisao .
+
+  SELECT gsber "GTEXT
+    FROM  tgsb
+    INTO TABLE @DATA(lt_tgsb).
+
+  LOOP AT lt_tgsb INTO DATA(lw_tgsb).
+
+    wa_divisao-divisao = lw_tgsb-gsber.
+    "wa_divisao-descricao = lw_tgsb-gtext.
+
+    APPEND wa_divisao TO it_divisao.
+
+
+  ENDLOOP.
+
+
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*& Form zf_extrair_centro
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_extrair_centro .
+
+  SELECT werks, name1
+    FROM t001w
+    INTO TABLE @DATA(lt_t001w).
+
+  SELECT bwkey, bukrs
+    FROM t001k
+    INTO TABLE @DATA(lt_t001k)
+    FOR ALL ENTRIES IN @lt_t001w
+    WHERE bwkey EQ @lt_t001w-werks.
+
+  SORT: lt_t001w BY werks,
+        lt_t001k BY bwkey.
+
+  LOOP AT lt_t001w INTO DATA(lw_t001w).
+    READ TABLE lt_t001k INTO DATA(lw_t001k) WITH KEY bwkey = lw_t001w-werks BINARY SEARCH.
+
+    wa_centro-centro    = lw_t001w-werks.
+    wa_centro-nome      = lw_t001w-name1.
+    wa_centro-empresa   = lw_t001k-bukrs.
+
+    APPEND wa_centro TO it_centro.
+
+    CONCATENATE wa_centro-centro
+                wa_centro-nome
+                wa_centro-empresa INTO wa_dados-dados SEPARATED BY '|'.
+
+    APPEND wa_dados TO it_dados.
+
+  ENDLOOP.
+
+
+  gv_cabecalho = 'Centro|Nome|Empresa'.
+
+  wa_header-dados = gv_cabecalho.
+
+  APPEND wa_header-dados TO it_header.
+
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*& Form zf_extrair_contas
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_extrair_contas .
+
+  DATA: lv_ska1_ktopl(4)  TYPE c,
+        lv_skb1_saknr(10) TYPE c,
+        lv_skb1_bukrs(4)  TYPE c.
+
+
+********************************* CAMPO CENTRO ************************
+  SELECT saknr, ktopl, xbilk, xspeb, erdat
+    FROM ska1
+    INTO TABLE @DATA(lt_ska1)
+    WHERE erdat IN @s_date.
+
+  IF lt_ska1 IS NOT INITIAL.
+
+    SELECT saknr, fstag, bukrs, xspeb
+      FROM skb1
+      INTO TABLE @DATA(lt_skb1)
+      FOR ALL ENTRIES IN @lt_ska1
+      WHERE saknr = @lt_ska1-saknr.
+
+    SELECT fstag, faus1
+      FROM t004f
+      INTO TABLE @DATA(lt_t004f)
+      FOR ALL ENTRIES IN @lt_skb1
+      WHERE fstag = @lt_skb1-fstag.
+
+  ENDIF.
+
+  SORT: lt_ska1  BY saknr,
+        lt_skb1  BY saknr,
+        lt_t004f BY fstag.
+
+  LOOP AT lt_ska1 INTO DATA(lw_ska1).
+    READ TABLE lt_skb1 INTO DATA(lw_skb1) WITH KEY saknr = lw_ska1-saknr BINARY SEARCH.
+    READ TABLE lt_t004f INTO DATA(lw_t004f) WITH KEY fstag = lw_skb1-fstag BINARY SEARCH.
+
+
+    wa_contas-conta_saknr       = lw_ska1-saknr.
+    wa_contas-plcontas_ktopl    = lw_ska1-ktopl.
+    wa_contas-contblc_xbilk     = lw_ska1-xbilk.
+    wa_contas-bi_plano_xspeb    = lw_ska1-xspeb.
+    wa_contas-empresa_bukrs     = lw_skb1-bukrs. "OS CAMPOS ACIMA DEVEM SER DUPLICADOS??????
+    wa_contas-bi_empresa_xspeb  = lw_skb1-xspeb.
+
+    IF lw_t004f-faus1+25(1) EQ '+'.
+      wa_contas-centro_faus1 = 'X'.
+
+    ELSEIF lw_t004f-faus1+8(1) EQ '+'.
+      wa_contas-material_faus1 = 'X'.
+
+    ELSEIF lw_t004f-faus1+9(1) EQ '+'.
+      wa_contas-ccusto_faus1 = 'X'.
+
+    ELSEIF lw_t004f-faus1+10(1) EQ '+'.
+      wa_contas-ordem_faus1 = 'X'.
+
+    ELSEIF lw_t004f-faus1+11(1) EQ '+'.
+      wa_contas-pep_faus1 = 'X'.
+
+    ELSEIF lw_t004f-faus1+18(1) EQ '+'.
+      wa_contas-net_faus1 = 'X'.
+
+    ENDIF.
+
+    APPEND wa_contas TO it_contas.
+
+    CONCATENATE lw_ska1-ktopl lw_ska1-saknr INTO wa_cdhdr-objeto1.
+
+    CONCATENATE lw_ska1-ktopl lw_skb1-saknr lw_skb1-bukrs INTO wa_cdhdr-objeto2.
+
+    APPEND wa_cdhdr TO it_cdhdr.
+
+    SELECT objectclas, objectid, udate
+      FROM cdhdr
+      INTO TABLE @DATA(lt_cdhdr)
+      WHERE objectid EQ @wa_cdhdr-objeto2
+        AND udate IN @s_data.
+
+    SORT: lt_cdhdr BY objectid.
+
+
+    IF sy-subrc EQ 0 .
+
+      lv_ska1_ktopl = wa_cdhdr-objeto2(4).
+      lv_skb1_saknr = wa_cdhdr-objeto2+4(10).
+      lv_skb1_bukrs = wa_cdhdr-objeto2+14(4).
+
+      READ TABLE lt_skb1 INTO DATA(lw_skb1_2) WITH KEY saknr = lv_skb1_saknr bukrs = lv_skb1_bukrs.
+
+      wa_contas_mod-conta_saknr       = lv_skb1_saknr.
+      wa_contas_mod-plcontas_ktopl    = lv_ska1_ktopl.
+      wa_contas_mod-contblc_xbilk     = lw_ska1-xbilk.
+      wa_contas_mod-bi_plano_xspeb    = lw_ska1-xspeb.
+      wa_contas_mod-empresa_bukrs     = lv_skb1_bukrs. "OS CAMPOS ACIMA DEVEM SER DUPLICADOS??????
+      wa_contas_mod-bi_empresa_xspeb  = lw_skb1-xspeb.
+
+      IF lw_t004f-faus1+25(1) EQ '+'.
+        wa_contas_mod-centro_faus1 = 'X'.
+
+      ELSEIF lw_t004f-faus1+8(1) EQ '+'.
+        wa_contas_mod-material_faus1 = 'X'.
+
+      ELSEIF lw_t004f-faus1+9(1) EQ '+'.
+        wa_contas_mod-ccusto_faus1 = 'X'.
+
+      ELSEIF lw_t004f-faus1+10(1) EQ '+'.
+        wa_contas_mod-ordem_faus1 = 'X'.
+
+      ELSEIF lw_t004f-faus1+11(1) EQ '+'.
+        wa_contas_mod-pep_faus1 = 'X'.
+
+      ELSEIF lw_t004f-faus1+18(1) EQ '+'.
+        wa_contas_mod-net_faus1 = 'X'.
+
+      ENDIF.
+
+      APPEND wa_contas_mod TO it_contas_mod.
+
+    ENDIF.
+
+    CONCATENATE wa_contas-conta_saknr
+                wa_contas-plcontas_ktopl
+                wa_contas-contblc_xbilk
+                wa_contas-bi_plano_xspeb
+                wa_contas-empresa_bukrs
+                wa_contas-bi_empresa_xspeb INTO wa_dados-dados SEPARATED BY '|'.
+
+    APPEND wa_dados TO it_dados.
+
+    IF lt_cdhdr IS NOT INITIAL.
+
+      CONCATENATE wa_contas_mod-conta_saknr
+                  wa_contas_mod-plcontas_ktopl
+                  wa_contas_mod-contblc_xbilk
+                  wa_contas_mod-bi_plano_xspeb
+                  wa_contas_mod-empresa_bukrs
+                  wa_contas_mod-bi_empresa_xspeb
+                  wa_contas_mod-centro_faus1 INTO wa_dados-dados SEPARATED BY '|'.
+
+      APPEND wa_dados TO it_dados.
+
+    ENDIF.
+
+  ENDLOOP.
+
+  gv_cabecalho = 'Conta|Plano_Contas|Descrição|Conta_Balanço|Centro|Material|CCusto|Ordem|PEP|Network|Bl_Lan_Plano|Emp'.
+
+  wa_header-dados = gv_cabecalho.
+
+  APPEND wa_header-dados TO it_header.
+
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form zf_extrair_ccustos
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_extrair_ccustos .
+
+  DATA: lv_objectId(15) TYPE c,
+        lv_kokrs(4)     TYPE c,
+        lv_kostl(10)    TYPE c.
+
+  SELECT kostl, kokrs, bukrs, gsber, verak, bkzkp, datab, datbi, ersda
+    FROM csks
+    INTO TABLE @DATA(lt_csks)
+    WHERE ersda IN @s_dt.
+
+  SELECT kokrs, kostl, ltext
+    FROM cskt
+    INTO TABLE @DATA(lt_cskt)
+    FOR ALL ENTRIES IN @lt_csks
+    WHERE kokrs EQ @lt_csks-kokrs
+      AND kostl EQ @lt_csks-kostl.
+
+  LOOP AT lt_csks INTO DATA(lw_csks).
+    READ TABLE lt_cskt INTO DATA(lw_cskt) WITH KEY kokrs = lw_csks-kokrs kostl = lw_csks-kostl.
+
+    wa_centro_custo-kostl = lw_csks-kostl.
+    wa_centro_custo-kokrs = lw_csks-kokrs.
+    wa_centro_custo-ltext = lw_cskt-ltext.
+    wa_centro_custo-bukrs = lw_csks-bukrs.
+    wa_centro_custo-gsber = lw_csks-gsber.
+    wa_centro_custo-verak = lw_csks-verak.
+    wa_centro_custo-bkzkp = lw_csks-bkzkp.
+    wa_centro_custo-datab = lw_csks-datab.
+    wa_centro_custo-datbi = lw_csks-datbi.
+
+    APPEND wa_centro_custo TO it_centro_custo.
+
+    CONCATENATE wa_centro_custo-kostl
+                wa_centro_custo-kokrs
+                wa_centro_custo-ltext
+                wa_centro_custo-bukrs
+                wa_centro_custo-gsber
+                wa_centro_custo-verak
+                wa_centro_custo-bkzkp
+                wa_centro_custo-datab
+                wa_centro_custo-datbi INTO wa_dados-dados SEPARATED BY '|'.
+
+      APPEND wa_dados TO it_dados.
+
+  ENDLOOP.
+
+  IF s_dtm IS NOT INITIAL.
+
+    PERFORM zf_cc_modificado.
+
+  ENDIF.
+
+  gv_cabecalho = 'Código|Area_Contabilidade|Descrição|Empresa|Unidade|Responsável|Bloqueado|Valido_Desde|Valido_Ate'.
+
+  wa_header-dados = gv_cabecalho.
+
+  APPEND wa_header-dados TO it_header.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form zf_cc_modificado
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM zf_cc_modificado . "CENTRO DE CUSTO MODIFICADO
+
+  DATA: lv_kokrs(4)  TYPE c,
+        lv_kostl(10) TYPE c.
+
+  CONCATENATE wa_centro_custo-kokrs wa_centro_custo-kostl INTO gv_objectid.
+
+  SELECT objectclas, objectid, udate
+    FROM cdhdr
+    INTO TABLE @DATA(lt_cdhdr)
+    WHERE objectid EQ @gv_objectid
+      AND objectclas EQ @gc_obj_ccusto
+      AND udate IN @s_dtm.
+
+  IF lt_cdhdr IS NOT INITIAL.
+
+    READ TABLE lt_cdhdr INTO DATA(lw_cdhdr) WITH KEY objectid = gv_objectid.
+    IF sy-subrc EQ 0.
+
+      lv_kostl = gv_objectid+4(10).
+      lv_kokrs = gv_objectid(4).
+
+      LOOP AT lt_cdhdr INTO lw_cdhdr.
+
+        READ TABLE it_centro_custo INTO DATA(lw_centro_custo) WITH KEY kostl = lv_kostl kokrs = lv_kokrs.
+
+        wa_cc_modif-kostl = lv_kostl.
+        wa_cc_modif-kokrs = lv_kokrs.
+        wa_cc_modif-ltext = lw_centro_custo-ltext.
+        wa_cc_modif-bukrs = lw_centro_custo-bukrs.
+        wa_cc_modif-gsber = lw_centro_custo-gsber.
+        wa_cc_modif-verak = lw_centro_custo-verak.
+        wa_cc_modif-bkzkp = lw_centro_custo-bkzkp.
+        wa_cc_modif-datab = lw_centro_custo-datab.
+        wa_cc_modif-datbi = lw_centro_custo-datbi.
+
+        APPEND wa_cc_modif TO it_cc_modif.
+
+        CONCATENATE wa_cc_modif-kostl
+                    wa_cc_modif-kokrs
+                    wa_cc_modif-ltext
+                    wa_cc_modif-bukrs
+                    wa_cc_modif-gsber
+                    wa_cc_modif-verak
+                    wa_cc_modif-bkzkp
+                    wa_cc_modif-datab
+                    wa_cc_modif-datbi INTO wa_dados-dados SEPARATED BY '|'.
+
+        APPEND wa_dados TO it_dados.
+
+      ENDLOOP.
+
+    ENDIF.
+
+  ENDIF.
+
+  gv_cabecalho = 'Código|Area_Contabilidade|Descrição|Empresa|Unidade|Responsável|Bloqueado|Valido_Desde|Valido_Ate'.
+
+  wa_header-dados = gv_cabecalho.
+
+  APPEND wa_header-dados TO it_header.
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*& Form zf_extrair_clucro
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_extrair_clucro .
+
+  SELECT prctr, ersda, bukrs, kokrs, verak, lock_ind, datab, datbi
+    FROM cepc
+    INTO TABLE @DATA(lt_cepc)
+    WHERE ersda IN @s_dcl.
+
+
+  SELECT bukrs, kokrs, prctr
+    FROM cepc_bukrs
+    INTO TABLE @DATA(lt_CEPC_BUKRS)
+    FOR ALL ENTRIES IN @lt_cepc
+    WHERE kokrs EQ @lt_cepc-kokrs
+      AND prctr EQ @lt_cepc-prctr.
+
+  SELECT prctr, ktext
+    FROM cepct
+    INTO TABLE @DATA(lt_cepct)
+    FOR ALL ENTRIES IN @lt_cepc
+    WHERE prctr EQ @lt_cepc-prctr.
+
+  SELECT prctr, kokrs, objnr
+    FROM cmdt_pc
+    INTO TABLE @DATA(lt_cmdt_pc)
+    FOR ALL ENTRIES IN @lt_cepc
+    WHERE prctr EQ @lt_cepc-prctr
+      AND kokrs EQ @lt_cepc-kokrs.
+
+  SORT: lt_cepc       BY prctr,
+        lt_cepc_bukrs BY prctr,
+        lt_cepct      BY prctr.
+
+  LOOP AT lt_cepc INTO DATA(lw_cepc).
+    READ TABLE lt_cepc_bukrs INTO DATA(lw_cepc_bukrs) WITH KEY prctr = lw_cepc-prctr kokrs = lw_cepc-kokrs.
+    READ TABLE lt_cepct INTO DATA(lw_cepct) WITH KEY prctr = lw_cepc-prctr.
+
+    wa_centro_lucro-kokrs     = lw_cepc-kokrs.
+    wa_centro_lucro-prctr     = lw_cepc-prctr.
+    wa_centro_lucro-ktext     = lw_cepct-ktext.
+    wa_centro_lucro-bukrs     = lw_cepc_bukrs-bukrs.
+    wa_centro_lucro-verak     = lw_cepc-verak.
+    wa_centro_lucro-lock_ind  = lw_cepc-lock_ind.
+    wa_centro_lucro-datab     = lw_cepc-datab.
+    wa_centro_lucro-datbi     = lw_cepc-datbi.
+
+    APPEND wa_centro_lucro TO it_centro_lucro.
+
+    CONCATENATE wa_centro_lucro-kokrs
+                wa_centro_lucro-prctr
+                wa_centro_lucro-ktext
+                wa_centro_lucro-bukrs
+                wa_centro_lucro-verak
+                wa_centro_lucro-lock_ind
+                wa_centro_lucro-datab
+                wa_centro_lucro-datbi INTO wa_dados-dados SEPARATED BY '|'.
+
+    APPEND wa_dados TO it_dados.
+
+  ENDLOOP.
+
+  gv_cabecalho = 'Código|Descrição|Empresa|Unidade|Responsável|Bloqueado|Valido_Desde|Valido_Ate'.
+
+  wa_header-dados = gv_cabecalho.
+
+  APPEND wa_header-dados TO it_header.
+
+  IF s_dclm IS NOT INITIAL.
+
+      CONCATENATE lw_cepc-kokrs wa_centro_lucro-prctr INTO gv_objectid.
+
+      gv_kokrs = lw_cepc-kokrs.
+      gv_prctr = wa_centro_lucro-prctr.
+
+      PERFORM zf_clucro_modificado.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form zf_clucro_modificado
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_clucro_modificado . "TALVES NECESSITE DE CORREÇÃO PARA QUE SEJA FEITA PESQUISA DE CENTRO DE LUCRO E CENTRO DE LUCRO MODIFICADO JUNTOS"
+
+  DATA: lv_kokrs(5) TYPE c.
+
+  SELECT objectclas, objectid, udate
+    FROM cdhdr
+    INTO TABLE @DATA(lt_cdhdr)
+    WHERE objectid EQ @gv_objectid
+      AND objectclas EQ @gc_obj_clucro
+      AND udate IN @s_dtm.
+
+  IF lt_cdhdr IS NOT INITIAL.
+
+    lv_kokrs = gv_objectid(4).
+
+    LOOP AT lt_cdhdr INTO DATA(lw_cdhdr).
+      READ TABLE it_centro_lucro INTO wa_centro_lucro WITH KEY prctr = gv_prctr kokrs = gv_objectid .
+
+      wa_ctl_modif-kokrs     = gv_objectid.
+      wa_ctl_modif-prctr     = wa_centro_lucro-prctr.
+      wa_ctl_modif-ktext     = wa_centro_lucro-ktext.
+      wa_ctl_modif-bukrs     = wa_centro_lucro-bukrs.
+      wa_ctl_modif-verak     = wa_centro_lucro-verak.
+      wa_ctl_modif-lock_ind  = wa_centro_lucro-lock_ind.
+      wa_ctl_modif-datab     = wa_centro_lucro-datab.
+      wa_ctl_modif-datbi     = wa_centro_lucro-datbi.
+
+      APPEND wa_ctl_modif TO it_ctl_modif.
+
+      CONCATENATE wa_ctl_modif-kokrs
+                  wa_ctl_modif-prctr
+                  wa_ctl_modif-ktext
+                  wa_ctl_modif-bukrs
+                  wa_ctl_modif-verak
+                  wa_ctl_modif-lock_ind
+                  wa_ctl_modif-datab
+                  wa_ctl_modif-datbi INTO wa_dados-dados SEPARATED BY '|'.
+
+      APPEND wa_dados TO it_dados.
+
+    ENDLOOP.
+
+  ENDIF.
+
+  gv_cabecalho = 'Código|Descrição|Empresa|Unidade|Responsável|Bloqueado|Valido_Desde|Valido_Ate'.
+
+  wa_header-dados = gv_cabecalho.
+
+  APPEND wa_header-dados TO it_header.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form zf_extrair_investimento
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_extrair_investimento.
+
+  SELECT aufnr, ktext, bukrs, erdat, werks, user2, autyp
+    FROM coas
+    INTO TABLE @DATA(lt_coas)
+    WHERE autyp EQ @gc_cat_order1
+      AND erdat IN @s_dti.
+
+  LOOP AT lt_coas INTO DATA(lw_coas).
+
+    wa_investimento-aufnr = lw_coas-aufnr.
+    wa_investimento-bukrs = lw_coas-bukrs.
+    wa_investimento-ktext = lw_coas-ktext.
+    wa_investimento-user2 = lw_coas-user2.
+    wa_investimento-werks = lw_coas-werks.
+
+    PERFORM zf_consultar_usuario USING wa_investimento-aufnr
+                                 CHANGING wa_investimento-sys_block
+                                          wa_investimento-user_block.
+
+
+  ENDLOOP.
+
+  gv_filename = gc_relatorio_ordem.
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form zf_consultar_usuario
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> WA_INVESTIMENTO_AUFNR
+*&      <-- WA_INVESTIMENTO_BLOQUEADO
+*&---------------------------------------------------------------------*
+FORM zf_consultar_usuario  USING in_investimento TYPE coas-aufnr
+
+                           CHANGING out_sys_blok TYPE bapi2075_3-sys_status
+                                   out_user_blok TYPE bapi2075_4-usr_status .
+
+  DATA: lt_tj02t         TYPE tj02t-istat,
+        lt_tj30t         TYPE tj30t-estat,
+        lt_langu         TYPE bapi0003_3-langu,
+        lt_master_data   TYPE bapi2075_2,
+        lt_return        TYPE bapireturn,
+        lt_user_status   TYPE STANDARD TABLE OF bapi2075_4,
+        lt_system_status TYPE STANDARD TABLE OF bapi2075_3.
+
+  DATA: lv_istat(5) TYPE c,
+        lv_estat(5) TYPE c.
+
+*  SELECT SINGLE istat
+*    FROM tj02t
+*    INTO lv_istat.
+*
+*  SELECT SINGLE estat
+*    FROM tj30t
+*    INTO lv_estat.
+
+
+  CALL FUNCTION 'BAPI_INTERNALORDER_GETDETAIL'
+    EXPORTING
+      orderid       = in_investimento
+      language      = lt_langu
+    IMPORTING
+      master_data   = lt_master_data
+      return        = lt_return
+    TABLES
+      system_status = lt_system_status
+      user_status   = lt_user_status
+*     ALLOWED_BUS_TRACT       =
+    .
+  READ TABLE lt_system_status INTO DATA(lw_system_status) INDEX 1.
+  IF sy-subrc IS INITIAL.
+
+    SELECT SINGLE istat
+    FROM tj02t
+    INTO lv_istat
+      WHERE istat EQ lw_system_status-sys_status.
+
+    IF sy-subrc EQ 0.
+
+      wa_investimento-sys_block = 'X'.
+
+    ENDIF.
+
+
+
+  ENDIF.
+
+  READ TABLE lt_user_status INTO DATA(lw_user_status) INDEX 1.
+  IF sy-subrc IS INITIAL.
+
+    SELECT SINGLE estat
+    FROM tj30t
+    INTO lv_estat
+      WHERE estat EQ lw_user_status.
+
+    IF sy-subrc EQ 0.
+
+      wa_investimento-user_block = 'X'.
+
+    ENDIF.
+
+
+  ENDIF.
+
+*  READ TABLE lt_system_status INTO DATA(lw_system_status) WITH KEY sys_status = lv_istat.
+*  READ TABLE lt_user_status INTO DATA(lw_user_status) WITH KEY usr_status = lv_estat.
+*
+*  IF lv_istat EQ lw_system_status-sys_status.
+*    wa_investimento-sys_block = 'X'.
+*
+*  ELSEIF lv_estat EQ lw_user_status-usr_status.
+*    wa_investimento-user_block = 'X'.
+*
+*  ENDIF.
+
+  APPEND wa_investimento TO it_investimento.
+
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*& Form zf_extrair_pep
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_extrair_pep .
+
+  IF s_dtpepm IS INITIAL.
+
+    SELECT pspnr, post1, erdat, pbukr, werks, verna
+      FROM prps
+      INTO TABLE @DATA(lt_prps)
+      WHERE erdat IN @s_dtpep.
+
+    LOOP AT lt_prps INTO DATA(lw_prps).
+
+      wa_pep-werks = lw_prps-werks.
+      wa_pep-pbukr = lw_prps-pbukr.
+      wa_pep-post1 = lw_prps-post1.
+      wa_pep-pspnr = lw_prps-pspnr.
+      wa_pep-verna = lw_prps-verna.
+
+      PERFORM zf_usuario_pep USING wa_pep-pspnr
+                             CHANGING wa_pep-bloqueado.
+
+    ENDLOOP.
+
+  ELSE.
+
+    PERFORM zf_extrair_pep_modificado.
+
+  ENDIF.
+
+  gv_filename = gc_relatorio_pep.
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form zf_extrair_pep_modificado
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_extrair_pep_modificado .
+
+  SELECT pspnr, post1, erdat, pbukr, werks, aedat, verna
+    FROM prps
+    INTO TABLE @DATA(lt_prps)
+    WHERE aedat IN @s_dtpepm.
+
+  LOOP AT lt_prps INTO DATA(lw_prps).
+
+    wa_pep_modif-werks = lw_prps-werks.
+    wa_pep_modif-pbukr = lw_prps-pbukr.
+    wa_pep_modif-post1 = lw_prps-post1.
+    wa_pep_modif-pspnr = lw_prps-pspnr.
+    wa_pep_modif-verna = lw_prps-verna.
+
+    PERFORM zf_usuario_pep USING wa_pep_modif-pspnr
+                           CHANGING wa_pep-bloqueado.
+
+  ENDLOOP.
+
+  gv_filename = gc_relatorio_pep.
+
+ENDFORM.
+
+
+
+
+*&---------------------------------------------------------------------*
+*& Form zf_usuario_pep
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> WA_PEP_PSPNR
+*&      <-- WA_BLOQUEADO
+*&---------------------------------------------------------------------*
+
+FORM zf_usuario_pep  USING    in_pep_pspnr TYPE prps-pspnr
+                     CHANGING out_pep_bloqueado TYPE c.
+
+*  DATA: lt_tj02t         TYPE tj02t-istat,
+*        lt_tj30t         TYPE tj30t-estat,
+*        lt_langu         TYPE bapi0003_3-langu,
+*        lt_master_data   TYPE bapi2075_2,
+*        lt_return        TYPE bapireturn,
+*        lt_user_status   TYPE STANDARD TABLE OF bapi2075_4,
+*        lt_system_status TYPE STANDARD TABLE OF bapi2075_3.
+
+  DATA: lv_return	         TYPE bapireturn1,
+        lt_i_wbs_elements	 TYPE STANDARD TABLE OF prps,
+        lt_e_system_status TYPE STANDARD TABLE OF bapi_wbs_system_status,
+        lt_e_user_status   TYPE STANDARD TABLE OF bapi_wbs_user_status,
+        lt_e_result	       TYPE STANDARD TABLE OF bapi_status_result.
+
+  DATA: lv_txt04_02(5) TYPE c,
+        lv_txt04_30(5) TYPE c,
+        lv_system(4)   TYPE c,
+        lv_user(4)     TYPE c,
+        lv_istat(5)    TYPE c,
+        lv_estat(5)    TYPE c.
+
+  SELECT SINGLE txt04
+    FROM tj02t
+    INTO lv_txt04_02.
+
+  SELECT SINGLE txt04
+    FROM tj30t
+    INTO lv_txt04_30.
+
+  CALL FUNCTION 'BAPI_BUS2054_GET_STATUS'
+    IMPORTING
+      return          = lv_return
+    TABLES
+      i_wbs_elements  = lt_i_wbs_elements
+      e_system_status = lt_e_system_status
+      e_user_status   = lt_e_user_status
+      e_result        = lt_e_result.
+
+  READ TABLE lt_e_system_status INTO DATA(lw_e_system_status) WITH KEY system_status = lv_txt04_02.
+  READ TABLE lt_e_user_status INTO DATA(lw_e_user_status) WITH KEY user_status = lv_txt04_30.
+  IF sy-subrc EQ 0.
+
+    lv_system = lw_e_system_status-system_status.
+    lv_user   = lw_e_user_status-user_status.
+
+    SELECT SINGLE istat
+      FROM tj02t
+      INTO lv_istat
+      WHERE istat EQ lv_system.
+
+    SELECT SINGLE estat
+    FROM tj30t
+    INTO lv_estat
+    WHERE estat EQ lv_user.
+
+    IF lv_istat = gc_sys_blok1.
+      wa_pep_modif-bloqueado = 'X'.
+
+    ELSEIF lv_istat = gc_sys_blok2.
+      wa_pep_modif-bloqueado = 'X'.
+
+    ENDIF.
+
+    IF lv_estat = gc_usu_blok.
+      wa_pep_modif-bloqueado = 'X'.
+    ENDIF.
+
+    APPEND wa_pep_modif TO it_pep_modif.
+
+  ENDIF.
+
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*& Form zf_extrair_network
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_extrair_network .
+
+  IF s_dtnetm IS INITIAL.
+
+    SELECT aufnr, pspel, ktext, bukrs, werks, erdat, aedat
+      FROM coas
+      INTO TABLE @DATA(lt_coas)
+      WHERE erdat IN @s_dtnet.
+
+    IF lt_coas IS NOT INITIAL.
+
+      SELECT pspnr, verna
+        FROM prps
+        INTO TABLE @DATA(lt_prps)
+        FOR ALL ENTRIES IN @lt_coas
+        WHERE pspnr EQ @lt_coas-pspel.
+
+      LOOP AT lt_coas INTO DATA(lw_coas).
+        READ TABLE lt_prps INTO DATA(lw_prps) WITH KEY pspnr = lw_coas-pspel.
+
+        wa_network-aufnr = lw_coas-aufnr.
+        wa_network-pspel = lw_coas-pspel.
+        wa_network-ktext = lw_coas-ktext.
+        wa_network-werks = lw_coas-werks.
+        wa_network-verna = lw_prps-verna.
+
+        PERFORM zf_network_detail USING wa_network-aufnr
+                                  CHANGING wa_network-operacao.
+
+        PERFORM zf_extrair_status USING wa_network-aufnr
+                                  CHANGING wa_network-bloqueado.
+
+
+      ENDLOOP.
+
+    ENDIF.
+
+  ENDIF.
+
+  gv_filename = gc_relatorio_network.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form zf_network_detail
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> WA_NETWORK_AUFNR
+*&      <-- WA_NETWORK_OPERACAO
+*&---------------------------------------------------------------------*
+FORM zf_network_detail  USING    in_network_aufnr
+                        CHANGING out_network_operacao.
+
+  DATA: lv_return   TYPE bapireturn1,
+        lt_activity TYPE STANDARD TABLE OF bapi_network_activity_exp.
+
+  CALL FUNCTION 'BAPI_NETWORK_GETDETAIL'
+    EXPORTING
+      number     = in_network_aufnr
+*     I_WITHOUT_NETWORK                  =
+*     I_WITHOUT_NETWORK_ACTIVITY         =
+*     I_WITHOUT_RELATION                 =
+*     I_WITHOUT_ACTIVITY_ELEMENT         =
+*     I_WITHOUT_ACTIVITY_MILESTONE       =
+*     I_WITHOUT_COMPONENT                =
+    IMPORTING
+      return     = lv_return
+    TABLES
+*     E_NETWORK  =
+      e_activity = lt_activity
+*     E_RELATION =
+*     E_MESSAGE_TABLE                    =
+*     E_ACTIVITY_ELEMENT                 =
+*     E_ACTIVITY_MILESTONE               =
+*     E_COMPONENT                        =
+    .
+
+  READ TABLE lt_activity INTO DATA(lw_activity) WITH KEY activity = wa_network-aufnr.
+
+  wa_network-operacao = lw_activity-activity.
+
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form zf_extrair_status
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+
+FORM zf_extrair_status  USING    in_netowrk_aufnr
+                        CHANGING out_network_bloqueado.
+
+  DATA: lt_return                   TYPE bapireturn1,
+        lt_e_activity_system_status TYPE STANDARD TABLE OF bapi_activity_system_status,
+        lt_e_activity_user_status   TYPE STANDARD TABLE OF bapi_activity_user_status.
+
+  DATA: lv_txt04_02(5) TYPE c,
+        lv_txt04_30(5) TYPE c,
+        lv_system(4)   TYPE c,
+        lv_user(4)     TYPE c,
+        lv_istat(5)    TYPE c,
+        lv_estat(5)    TYPE c.
+
+  SELECT SINGLE txt04
+    FROM tj02t
+    INTO lv_txt04_02.
+
+  SELECT SINGLE txt04
+    FROM tj30t
+    INTO lv_txt04_30.
+
+
+  CALL FUNCTION 'BAPI_BUS2002_GET_STATUS'
+    EXPORTING
+      number                   = in_netowrk_aufnr
+*     WITHOUT_ACTIVITIES       = ' '
+*   IMPORTING
+*     RETURN                   =
+    TABLES
+*     E_SYSTEM_STATUS          =
+*     E_USER_STATUS            =
+      e_activity_system_status = lt_e_activity_system_status
+      e_activity_user_status   = lt_e_activity_user_status.
+
+  READ TABLE lt_e_activity_system_status INTO DATA(lw_e_activity_system_status) WITH KEY system_status = lv_txt04_02.
+  IF sy-subrc <> 0.
+    CLEAR lw_e_activity_system_status.
+  ENDIF.
+
+  READ TABLE lt_e_activity_user_status INTO DATA(lw_e_activity_user_status) WITH KEY user_status = lv_txt04_30.
+  IF sy-subrc <> 0.
+    CLEAR lw_e_activity_user_status.
+  ENDIF.
+
+  IF sy-subrc EQ 0.
+
+    lv_system = lw_e_activity_system_status-system_status.
+    lv_user   = lw_e_activity_user_status-user_status.
+
+    SELECT SINGLE istat
+      FROM tj02t
+      INTO lv_istat
+      WHERE istat EQ lv_system.
+
+    SELECT SINGLE estat
+    FROM tj30t
+    INTO lv_estat
+    WHERE estat EQ lv_user.
+
+    IF lv_istat = gc_sys_blok1.
+      wa_network-bloqueado = 'X'.
+
+    ELSEIF lv_istat = gc_sys_blok2.
+      wa_network-bloqueado = 'X'.
+
+    ENDIF.
+
+    IF lv_estat = gc_usu_blok.
+      wa_network-bloqueado = 'X'.
+    ENDIF.
+
+    APPEND wa_network TO it_network.
+
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form zf_selecionar_pasta
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM zf_selecionar_pasta .
+
+  CALL FUNCTION 'TMP_GUI_BROWSE_FOR_FOLDER'
+    EXPORTING
+      window_title    = 'Selecione a pasta'
+      initial_folder  = gc_pasta_padrao
+    IMPORTING
+      selected_folder = p_arq
+    EXCEPTIONS
+      cntl_error      = 1
+      OTHERS          = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+ENDFORM.
+
+FORM zf_baixar_relatorio.
+
+  CALL FUNCTION 'GUI_DOWNLOAD'
+    EXPORTING
+*     BIN_FILESIZE          =
+      filename              = p_file
+      filetype              = 'ASC'
+      write_field_separator = abap_true
+    TABLES
+      data_tab              = it_dados
+      fieldnames            = it_header.
+  IF sy-subrc <> 0.
+    MESSAGE TEXT-m02 TYPE gc_message_type_e.
+
+  ELSE.
+    MESSAGE TEXT-m01 TYPE gc_message_type_s.
+
+  ENDIF.
+
+
+ENDFORM.
