@@ -1263,7 +1263,7 @@ ENDFORM.
 *& text
 *&---------------------------------------------------------------------*
 
-FORM zf_clucro_modificado . "TALVES NECESSITE DE CORREÇÃO PARA QUE SEJA FEITA PESQUISA DE CENTRO DE LUCRO E CENTRO DE LUCRO MODIFICADO JUNTOS"
+FORM zf_clucro_modificado .
 
   DATA: lv_kokrs(5) TYPE c.
 
